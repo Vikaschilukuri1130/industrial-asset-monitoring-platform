@@ -13,6 +13,7 @@ namespace AssetMonitoring.API.Controllers
 
         private readonly HealthScoreService _healthScoreService = new();
         private readonly AlertService _alertService = new();
+	private readonly MaintenanceRecommendationService _recommendationService = new();
 
         [HttpGet]
         public ActionResult<IEnumerable<SensorReading>> GetSensorReadings()
@@ -53,14 +54,22 @@ namespace AssetMonitoring.API.Controllers
                 Alerts.Add(alert);
             }
 
-            return Ok(new
-            {
-                Message = "Sensor reading processed successfully",
-                Reading = reading,
-                HealthScore = healthScore,
-                AlertGenerated = alert != null,
-                Alert = alert
-            });
+           var recommendation = _recommendationService.GetRecommendation(
+    reading.Temperature,
+    reading.Pressure,
+    reading.Vibration,
+    reading.RuntimeHours
+);
+
+return Ok(new
+{
+    Message = "Sensor reading processed successfully",
+    Reading = reading,
+    HealthScore = healthScore,
+    Recommendation = recommendation,
+    AlertGenerated = alert != null,
+    Alert = alert
+});
         }
     }
 }
