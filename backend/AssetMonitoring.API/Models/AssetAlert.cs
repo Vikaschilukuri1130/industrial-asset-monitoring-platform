@@ -1,7 +1,10 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace AssetMonitoring.API.Models
 {
     public class AssetAlert
     {
+        [Key]
         public int AlertId { get; set; }
 
         public int AssetId { get; set; }

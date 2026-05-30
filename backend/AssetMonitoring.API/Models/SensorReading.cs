@@ -1,7 +1,10 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace AssetMonitoring.API.Models
 {
     public class SensorReading
     {
+        [Key]
         public int SensorReadingId { get; set; }
 
         public int AssetId { get; set; }

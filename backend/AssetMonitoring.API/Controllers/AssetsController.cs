@@ -1,5 +1,7 @@
+using AssetMonitoring.API.Data;
 using AssetMonitoring.API.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace AssetMonitoring.API.Controllers
 {
@@ -7,42 +9,35 @@ namespace AssetMonitoring.API.Controllers
     [ApiController]
     public class AssetsController : ControllerBase
     {
-        private static readonly List<Asset> Assets = new()
+        private readonly ApplicationDbContext _context;
+
+        public AssetsController(ApplicationDbContext context)
         {
-            new Asset
-            {
-                AssetId = 1,
-                AssetName = "Compressor Unit A1",
-                AssetType = "Compressor",
-                Location = "Plant 1",
-                Status = "Operational",
-                InstalledDate = new DateTime(2023, 1, 15),
-                LastMaintenanceDate = new DateTime(2025, 12, 10)
-            }
-        };
+            _context = context;
+        }
 
         [HttpGet]
-        public ActionResult<IEnumerable<Asset>> GetAssets()
+        public async Task<ActionResult<IEnumerable<Asset>>> GetAssets()
         {
-            return Ok(Assets);
+            return await _context.Assets.ToListAsync();
         }
 
         [HttpGet("{id}")]
-        public ActionResult<Asset> GetAssetById(int id)
+        public async Task<ActionResult<Asset>> GetAssetById(int id)
         {
-            var asset = Assets.FirstOrDefault(a => a.AssetId == id);
+            var asset = await _context.Assets.FindAsync(id);
 
             if (asset == null)
                 return NotFound();
 
-            return Ok(asset);
+            return asset;
         }
 
         [HttpPost]
-        public ActionResult<Asset> CreateAsset(Asset asset)
+        public async Task<ActionResult<Asset>> CreateAsset(Asset asset)
         {
-            asset.AssetId = Assets.Count + 1;
-            Assets.Add(asset);
+            _context.Assets.Add(asset);
+            await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetAssetById), new { id = asset.AssetId }, asset);
         }
