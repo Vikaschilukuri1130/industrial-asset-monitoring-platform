@@ -1,6 +1,8 @@
+using AssetMonitoring.API.Data;
 using AssetMonitoring.API.Models;
 using AssetMonitoring.API.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace AssetMonitoring.API.Controllers
 {
@@ -8,37 +10,52 @@ namespace AssetMonitoring.API.Controllers
     [ApiController]
     public class SensorReadingsController : ControllerBase
     {
-        private static readonly List<SensorReading> SensorReadings = new();
-        private static readonly List<AssetAlert> Alerts = new();
-
+        private readonly ApplicationDbContext _context;
         private readonly HealthScoreService _healthScoreService = new();
         private readonly AlertService _alertService = new();
-	private readonly MaintenanceRecommendationService _recommendationService = new();
+        private readonly MaintenanceRecommendationService _recommendationService = new();
+
+        public SensorReadingsController(ApplicationDbContext context)
+        {
+            _context = context;
+        }
 
         [HttpGet]
-        public ActionResult<IEnumerable<SensorReading>> GetSensorReadings()
+        public async Task<ActionResult<IEnumerable<SensorReading>>> GetSensorReadings()
         {
-            return Ok(SensorReadings);
+            return await _context.SensorReadings.ToListAsync();
         }
 
         [HttpGet("alerts")]
-        public ActionResult<IEnumerable<AssetAlert>> GetAlerts()
+        public async Task<ActionResult<IEnumerable<AssetAlert>>> GetAlerts()
         {
-            return Ok(Alerts);
+            return await _context.AssetAlerts.ToListAsync();
         }
 
         [HttpPost]
-        public ActionResult<object> CreateSensorReading(SensorReading reading)
+        public async Task<ActionResult<object>> CreateSensorReading(SensorReading reading)
         {
-            reading.SensorReadingId = SensorReadings.Count + 1;
+            var assetExists = await _context.Assets.AnyAsync(a => a.AssetId == reading.AssetId);
+
+            if (!assetExists)
+                return BadRequest("AssetId does not exist.");
+
+            reading.SensorReadingId = 0;
             reading.ReadingTime = DateTime.UtcNow;
 
-            SensorReadings.Add(reading);
+            _context.SensorReadings.Add(reading);
 
             int healthScore = _healthScoreService.CalculateHealthScore(
                 reading.Temperature,
                 reading.Pressure,
                 reading.Vibration
+            );
+
+            var recommendation = _recommendationService.GetRecommendation(
+                reading.Temperature,
+                reading.Pressure,
+                reading.Vibration,
+                reading.RuntimeHours
             );
 
             var alert = _alertService.GenerateAlert(
@@ -50,26 +67,21 @@ namespace AssetMonitoring.API.Controllers
 
             if (alert != null)
             {
-                alert.AlertId = Alerts.Count + 1;
-                Alerts.Add(alert);
+                alert.AlertId = 0;
+                _context.AssetAlerts.Add(alert);
             }
 
-           var recommendation = _recommendationService.GetRecommendation(
-    reading.Temperature,
-    reading.Pressure,
-    reading.Vibration,
-    reading.RuntimeHours
-);
+            await _context.SaveChangesAsync();
 
-return Ok(new
-{
-    Message = "Sensor reading processed successfully",
-    Reading = reading,
-    HealthScore = healthScore,
-    Recommendation = recommendation,
-    AlertGenerated = alert != null,
-    Alert = alert
-});
+            return Ok(new
+            {
+                Message = "Sensor reading processed and saved successfully",
+                Reading = reading,
+                HealthScore = healthScore,
+                Recommendation = recommendation,
+                AlertGenerated = alert != null,
+                Alert = alert
+            });
         }
     }
 }
